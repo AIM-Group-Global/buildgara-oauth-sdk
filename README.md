@@ -364,4 +364,5 @@ All errors extend `SsoError`:
 
 ## License
 
-Proprietary — `buildgara-oauth-sdk` is part of the BuildGara platform ecosystem.
+[MIT License](LICENSE) © BuildGara
+
