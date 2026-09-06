@@ -14,15 +14,17 @@ import {
 // Env helpers (read consumer's BG_WEB_BASE / BG_API_BASE, fallback production)
 // ---------------------------------------------------------------------------
 
-function readEnv(name: string, fallback: string): string {
-  // Vite / bundler inlined env
-  const inline =
-    (typeof import.meta !== "undefined"
-      ? (import.meta as any).env?.[name]
-      : undefined) ??
-    (typeof process !== "undefined" ? process.env?.[name] : undefined);
-  if (typeof inline === "string" && inline) {
-    return inline.replace(/\/+$/, "");
+function readEnv(names: string | string[], fallback: string): string {
+  const nameList = Array.isArray(names) ? names : [names];
+  for (const name of nameList) {
+    const inline =
+      (typeof import.meta !== "undefined"
+        ? (import.meta as any).env?.[name]
+        : undefined) ??
+      (typeof process !== "undefined" ? process.env?.[name] : undefined);
+    if (typeof inline === "string" && inline) {
+      return inline.replace(/\/+$/, "");
+    }
   }
   return fallback;
 }
@@ -87,7 +89,7 @@ function warnOnce(msg: string) {
   if (warnOnceFlag) return;
   warnOnceFlag = true;
   // eslint-disable-next-line no-console
-  console.warn("[@buildgara/oauth-sdk]", msg);
+  console.warn("[buildgara-oauth-sdk]", msg);
 }
 
 // ---------------------------------------------------------------------------
@@ -198,8 +200,12 @@ export function buildGara(config: BuildGaraClientConfig): BuildGaraClient {
   }
 
   const scopes = config.scopes ?? "openid profile email role";
-  const webBaseUrl = readEnv("BG_WEB_BASE", DEFAULT_WEB_BASE);
-  const apiBaseUrl = readEnv("BG_API_BASE", DEFAULT_API_BASE);
+  const webBaseUrl =
+    config.webBaseUrl?.replace(/\/+$/, "") ??
+    readEnv(["BG_WEB_BASE", "VITE_BG_WEB_BASE", "VITE_BUILDGARA_SSO_URL"], DEFAULT_WEB_BASE);
+  const apiBaseUrl =
+    config.apiBaseUrl?.replace(/\/+$/, "") ??
+    readEnv(["BG_API_BASE", "VITE_BG_API_BASE", "VITE_BUILDGARA_API_URL"], DEFAULT_API_BASE);
 
   return {
     buildAuthorizeUrl: (overrideParams) =>

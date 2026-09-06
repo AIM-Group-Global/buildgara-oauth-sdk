@@ -28,6 +28,7 @@ import {
 export interface BuildGaraServerConfig {
   clientId: string;
   clientSecret: string;
+  apiBaseUrl?: string;
 }
 
 /** Result of exchangeCode / callbackHandler's onProfile. */
@@ -85,10 +86,13 @@ export interface CallbackHandlerOpts {
 // Env helpers
 // ---------------------------------------------------------------------------
 
-function readEnv(name: string, fallback: string): string {
-  const val = process.env?.[name];
-  if (typeof val === "string" && val) {
-    return val.replace(/\/+$/, "");
+function readEnv(names: string | string[], fallback: string): string {
+  const nameList = Array.isArray(names) ? names : [names];
+  for (const name of nameList) {
+    const val = process.env?.[name];
+    if (typeof val === "string" && val) {
+      return val.replace(/\/+$/, "");
+    }
   }
   return fallback;
 }
@@ -118,7 +122,9 @@ export function buildGaraServer(config: BuildGaraServerConfig): BuildGaraServer 
     );
   }
 
-  const apiBase = readEnv("BG_API_BASE", DEFAULT_API_BASE);
+  const apiBase =
+    config.apiBaseUrl?.replace(/\/+$/, "") ??
+    readEnv(["BG_API_BASE", "BUILDGARA_API_URL"], DEFAULT_API_BASE);
 
   return {
     exchangeCode: (code, codeVerifier) =>
@@ -379,7 +385,7 @@ function renderDefaultSuccess(
       }
       window.close();
     })();
-  <\/script>
+  ${'</' + 'script>'}
   <style>
     body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #fafafa; color: #333; }
     .spinner { width: 32px; height: 32px; border: 3px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }

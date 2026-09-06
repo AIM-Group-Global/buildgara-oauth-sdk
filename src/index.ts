@@ -1,5 +1,5 @@
 /**
- * @buildgara/oauth-sdk — Login with BuildGara
+ * buildgara-oauth-sdk — Login with BuildGara
  *
  * OAuth 2.0 Authorization Code + PKCE SDK for third-party apps.
  * BuildGara acts as the identity provider (IdP); your app creates its own
@@ -7,7 +7,7 @@
  *
  * @example Popup flow (React / any SPA)
  * ```ts
- * import { buildGara } from "@buildgara/oauth-sdk";
+ * import { buildGara } from "buildgara-oauth-sdk";
  *
  * const bg = buildGara({
  *   clientId: import.meta.env.BG_CLIENT_ID,
@@ -21,7 +21,7 @@
  *
  * @example Server-side exchange (Express)
  * ```ts
- * import { buildGaraServer } from "@buildgara/oauth-sdk";
+ * import { buildGaraServer } from "buildgara-oauth-sdk";
  *
  * const bgServer = buildGaraServer({
  *   clientId: process.env.BG_CLIENT_ID!,

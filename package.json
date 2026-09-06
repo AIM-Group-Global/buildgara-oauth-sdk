@@ -1,6 +1,6 @@
 {
   "name": "buildgara-oauth-sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Login with BuildGara — OAuth 2.0 Authorization Code + PKCE SDK for third-party apps (Google-style popup flow)",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,8 +20,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm, cjs --dts --clean --outDir dist",
-    "dev": "tsup src/index.ts --format esm, cjs --dts --clean --outDir dist --watch",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-vm-modules node_modules/vitest/dist/cli.js"
   },

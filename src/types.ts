@@ -36,7 +36,6 @@ export interface LoginResult {
   idToken?: string;
 }
 
-/** Config for the browser-side client. */
 export interface BuildGaraClientConfig {
   /** Your registered BuildGara Sub-App client id (bg_client_...). */
   clientId: string;
@@ -44,12 +43,20 @@ export interface BuildGaraClientConfig {
   redirectUri: string;
   /** Optional custom scope string. Default: "openid profile email role". */
   scopes?: string;
+  /** Optional custom central IdP web base URL (e.g. "http://localhost:5173"). Default: BG_WEB_BASE env or "https://buildgara.com". */
+  webBaseUrl?: string;
+  /** Optional custom central IdP API base URL (e.g. "http://localhost:5000"). Default: BG_API_BASE env or "https://buildgara.com". */
+  apiBaseUrl?: string;
 }
 
 /** Config for the server-side helper. */
 export interface BuildGaraServerConfig {
   /** Your registered Sub-App client secret (bg_sec_...). Server-only — never send to browser. */
   clientSecret: string;
+  /** Your registered Sub-App client id (bg_client_...). */
+  clientId: string;
+  /** Optional custom central IdP API base URL (e.g. "http://localhost:5000"). Default: BG_API_BASE env or "https://buildgara.com". */
+  apiBaseUrl?: string;
 }
 
 /** Shape the consumer's onProfile hook returns — opaque to the library,
