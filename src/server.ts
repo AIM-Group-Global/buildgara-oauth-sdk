@@ -97,7 +97,7 @@ function readEnv(names: string | string[], fallback: string): string {
   return fallback;
 }
 
-const DEFAULT_API_BASE = "https://buildgara.com";
+const DEFAULT_API_BASE = "https://api.buildgara.com";
 
 // ---------------------------------------------------------------------------
 // Cookie names (set by client-side, read by server callbackHandler)

@@ -1,6 +1,6 @@
 {
   "name": "buildgara-oauth-sdk",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "Login with BuildGara — OAuth 2.0 Authorization Code + PKCE SDK for third-party apps (Google-style popup flow)",
   "type": "module",
   "main": "./dist/index.js",

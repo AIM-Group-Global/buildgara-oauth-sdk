@@ -29,12 +29,10 @@ yarn add buildgara-oauth-sdk
 
 ### 1. Register a BuildGara Sub-App
 
-1. Log in to BuildGara (e.g., `https://buildgara.com`).
+1. Log in to [BuildGara](https://buildgara.com).
 2. Go to **Settings → Developer Apps**.
-3. Click **Register Sub-App** and fill in:
-   - **App Name**: Name displayed on the consent screen.
-   - **Redirect URIs**: Authorized callback endpoints (e.g. `http://localhost:5174/id/callback`, `https://myapp.com/id/callback`).
-4. Save your credentials:
+3. Click **Register Sub-App** and fill in your app details & Redirect URIs (e.g. `https://myapp.com/callback`).
+4. Save your generated credentials:
    ```env
    CLIENT ID:      bg_client_x1y2z3...
    CLIENT SECRET:  bg_sec_a1b2c3...
@@ -44,23 +42,16 @@ yarn add buildgara-oauth-sdk
 
 ### 2. Configure Environment Variables
 
-#### Browser / Frontend (`.env` or `.env.local`)
+#### Frontend App (`.env` or `.env.local`)
 ```env
 VITE_BUILDGARA_CLIENT_ID=bg_client_x1y2z3...
-VITE_BUILDGARA_REDIRECT_URI=http://localhost:5174/id/callback
-
-# Optional Base URLs (Defaults to https://buildgara.com)
-VITE_BUILDGARA_SSO_URL=http://localhost:5173
-VITE_BUILDGARA_API_URL=http://localhost:5000
+VITE_BUILDGARA_REDIRECT_URI=https://myapp.com/callback
 ```
 
 #### Backend Server (`.env`)
 ```env
 BUILDGARA_CLIENT_ID=bg_client_x1y2z3...
 BUILDGARA_CLIENT_SECRET=bg_sec_a1b2c3...
-
-# Optional Base URL (Defaults to https://buildgara.com)
-BUILDGARA_API_URL=http://localhost:5000
 ```
 
 ---
@@ -75,10 +66,7 @@ import { buildGara } from "buildgara-oauth-sdk";
 
 export const ssoClient = buildGara({
   clientId: import.meta.env.VITE_BUILDGARA_CLIENT_ID,
-  redirectUri: import.meta.env.VITE_BUILDGARA_REDIRECT_URI || `${window.location.origin}/id/callback`,
-  webBaseUrl: import.meta.env.VITE_BUILDGARA_SSO_URL, // optional override (e.g., http://localhost:5173)
-  apiBaseUrl: import.meta.env.VITE_BUILDGARA_API_URL, // optional override (e.g., http://localhost:5000)
-  scopes: "openid profile email role", // default scope
+  redirectUri: import.meta.env.VITE_BUILDGARA_REDIRECT_URI || `${window.location.origin}/callback`,
 });
 ```
 
@@ -128,7 +116,7 @@ You can handle the callback using either **Approach A (Backend Route Controller)
 
 #### Approach A: Frontend Callback Page + Backend Controller (Recommended)
 
-**1. Frontend Callback Component (`/id/callback` page)**
+**1. Frontend Callback Component (`/callback` page)**
 
 ```tsx
 // src/pages/SSOCallback.tsx
@@ -189,7 +177,6 @@ import { buildGaraServer } from "buildgara-oauth-sdk";
 const bgServer = buildGaraServer({
   clientId: process.env.BUILDGARA_CLIENT_ID!,
   clientSecret: process.env.BUILDGARA_CLIENT_SECRET!,
-  apiBaseUrl: process.env.BUILDGARA_API_URL || "https://buildgara.com",
 });
 
 export async function ssoCallbackController(req: any, res: any) {
@@ -226,7 +213,7 @@ export async function ssoCallbackController(req: any, res: any) {
 
 #### Approach B: Direct Express Middleware Callback
 
-If your server directly handles the redirect endpoint (e.g. `GET /id/callback`):
+If your server directly handles the redirect endpoint (e.g. `GET /callback`):
 
 ```ts
 import { buildGaraServer } from "buildgara-oauth-sdk";
@@ -234,11 +221,10 @@ import { buildGaraServer } from "buildgara-oauth-sdk";
 const bgServer = buildGaraServer({
   clientId: process.env.BUILDGARA_CLIENT_ID!,
   clientSecret: process.env.BUILDGARA_CLIENT_SECRET!,
-  apiBaseUrl: process.env.BUILDGARA_API_URL,
 });
 
 app.get(
-  "/id/callback",
+  "/callback",
   bgServer.callbackHandler({
     onProfile: async ({ profile, accessToken }) => {
       // Upsert local user by profile.sub
@@ -247,6 +233,40 @@ app.get(
     },
   })
 );
+```
+
+---
+
+## Advanced: Local Development & Custom Environments
+
+By default, the SDK connects automatically to production (`https://buildgara.com` for web login and `https://api.buildgara.com` for API calls).
+
+If you are developing or testing against a local instance of BuildGara, you can override the base URLs via config options or environment variables:
+
+```env
+# Frontend .env (Local Dev Override)
+VITE_BUILDGARA_SSO_URL=http://localhost:5173
+VITE_BUILDGARA_API_URL=http://localhost:5000
+
+# Backend .env (Local Dev Override)
+BUILDGARA_API_URL=http://localhost:5000
+```
+
+```ts
+// Client Config Override
+const ssoClient = buildGara({
+  clientId: "bg_client_...",
+  redirectUri: "http://localhost:5174/callback",
+  webBaseUrl: "http://localhost:5173", // optional
+  apiBaseUrl: "http://localhost:5000", // optional
+});
+
+// Server Config Override
+const bgServer = buildGaraServer({
+  clientId: "bg_client_...",
+  clientSecret: "bg_sec_...",
+  apiBaseUrl: "http://localhost:5000", // optional
+});
 ```
 
 ---
@@ -261,8 +281,8 @@ Creates a client-side SSO helper instance.
 |-----------|------|----------|-------------|
 | `clientId` | `string` | ✅ | Registered client ID (`bg_client_...`) |
 | `redirectUri` | `string` | ✅ | Registered redirect callback URL |
-| `webBaseUrl` | `string` | ❌ | IdP Web URL (default `https://buildgara.com`) |
-| `apiBaseUrl` | `string` | ❌ | IdP API URL (default `https://buildgara.com`) |
+| `webBaseUrl` | `string` | ❌ | Optional Web URL override (default `https://buildgara.com`) |
+| `apiBaseUrl` | `string` | ❌ | Optional API URL override (default `https://api.buildgara.com`) |
 | `scopes` | `string` | ❌ | Scopes requested (default `"openid profile email role"`) |
 
 #### Client Methods
@@ -289,7 +309,7 @@ Creates a server-side SSO helper instance.
 |-----------|------|----------|-------------|
 | `clientId` | `string` | ✅ | Registered client ID (`bg_client_...`) |
 | `clientSecret` | `string` | ✅ | Registered client secret (`bg_sec_...`) — **keep server-side** |
-| `apiBaseUrl` | `string` | ❌ | IdP API URL (default `https://buildgara.com`) |
+| `apiBaseUrl` | `string` | ❌ | Optional API URL override (default `https://api.buildgara.com`) |
 
 #### Server Methods
 
@@ -365,4 +385,3 @@ All errors extend `SsoError`:
 ## License
 
 [MIT License](LICENSE) © BuildGara
-

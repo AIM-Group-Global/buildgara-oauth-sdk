@@ -30,7 +30,7 @@ function readEnv(names: string | string[], fallback: string): string {
 }
 
 const DEFAULT_WEB_BASE = "https://buildgara.com";
-const DEFAULT_API_BASE = "https://buildgara.com";
+const DEFAULT_API_BASE = "https://api.buildgara.com";
 
 // ---------------------------------------------------------------------------
 // Random + base64url
