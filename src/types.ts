@@ -57,6 +57,13 @@ export interface BuildGaraServerConfig {
   clientId: string;
   /** Optional custom central IdP API base URL (e.g. "http://localhost:5000"). Default: BG_API_BASE env or "https://buildgara.com". */
   apiBaseUrl?: string;
+  /** One of your registered redirect URIs (origin + pathname must match the
+   *  authorize-time redirect_uri exactly, e.g. "https://buildgara.com/id/callback").
+   *  Optional for backward compat, but required at exchange time when the IdP
+   *  stored a redirectUri with the code (always). Falls back to
+   *  BG_REDIRECT_URI / BUILDGARA_REDIRECT_URI env. A per-call override can be
+   *  passed to exchangeCode(). */
+  redirectUri?: string;
 }
 
 /** Shape the consumer's onProfile hook returns — opaque to the library,

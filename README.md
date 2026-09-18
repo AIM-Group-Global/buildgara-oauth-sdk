@@ -177,14 +177,21 @@ import { buildGaraServer } from "buildgara-oauth-sdk";
 const bgServer = buildGaraServer({
   clientId: process.env.BUILDGARA_CLIENT_ID!,
   clientSecret: process.env.BUILDGARA_CLIENT_SECRET!,
+  redirectUri: process.env.BUILDGARA_REDIRECT_URI!, // e.g. "https://myapp.com/callback" — must match authorize-time redirect_uri
 });
 
 export async function ssoCallbackController(req: any, res: any) {
   try {
-    const { code, code_verifier } = req.body;
+    const { code, code_verifier, redirect_uri } = req.body;
 
-    // Exchange authorization code for canonical BuildGara UserInfo
-    const { profile, accessToken } = await bgServer.exchangeCode(code, code_verifier || "");
+    // Exchange authorization code for canonical BuildGara UserInfo.
+    // redirect_uri must echo the authorize-time value (RFC 6749 Section 4.1.3) —
+    // per-call override wins, otherwise the configured redirectUri / env is used.
+    const { profile, accessToken } = await bgServer.exchangeCode(
+      code,
+      code_verifier || "",
+      redirect_uri || undefined,
+    );
 
     // Find or create user keyed on stable profile.sub
     let user = await db.user.findUnique({ where: { buildGaraSub: profile.sub } });
@@ -221,6 +228,7 @@ import { buildGaraServer } from "buildgara-oauth-sdk";
 const bgServer = buildGaraServer({
   clientId: process.env.BUILDGARA_CLIENT_ID!,
   clientSecret: process.env.BUILDGARA_CLIENT_SECRET!,
+  redirectUri: process.env.BUILDGARA_REDIRECT_URI!, // required for callbackHandler exchange
 });
 
 app.get(
@@ -250,6 +258,7 @@ VITE_BUILDGARA_API_URL=http://localhost:5000
 
 # Backend .env (Local Dev Override)
 BUILDGARA_API_URL=http://localhost:5000
+BUILDGARA_REDIRECT_URI=http://localhost:5174/id/callback
 ```
 
 ```ts
@@ -265,6 +274,7 @@ const ssoClient = buildGara({
 const bgServer = buildGaraServer({
   clientId: "bg_client_...",
   clientSecret: "bg_sec_...",
+  redirectUri: "http://localhost:5174/id/callback", // required — must match authorize-time redirect_uri
   apiBaseUrl: "http://localhost:5000", // optional
 });
 ```
@@ -309,12 +319,13 @@ Creates a server-side SSO helper instance.
 |-----------|------|----------|-------------|
 | `clientId` | `string` | ✅ | Registered client ID (`bg_client_...`) |
 | `clientSecret` | `string` | ✅ | Registered client secret (`bg_sec_...`) — **keep server-side** |
+| `redirectUri` | `string` | ⚠️ | Registered redirect callback URL — required at exchange time (RFC 6749 §4.1.3); falls back to `BG_REDIRECT_URI` / `BUILDGARA_REDIRECT_URI` env or per-call override |
 | `apiBaseUrl` | `string` | ❌ | Optional API URL override (default `https://api.buildgara.com`) |
 
 #### Server Methods
 
-- **`exchangeCode(code: string, codeVerifier?: string): Promise<ExchangeResult>`**
-  Exchanges authorization code for user profile & access token.
+- **`exchangeCode(code: string, codeVerifier: string, redirectUri?: string): Promise<ExchangeResult>`**
+  Exchanges authorization code for user profile & access token. Per-call `redirectUri` wins, then configured `redirectUri`, then env. Must match the authorize-time `redirect_uri` exactly (origin + pathname).
 
 - **`callbackHandler(options: CallbackHandlerOpts)`**
   Express GET handler for full-page or popup callback flow.

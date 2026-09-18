@@ -83,6 +83,7 @@ describe("exchangeCode — token exchange + UserInfo", () => {
     const server = buildGaraServer({
       clientId: "bg_client_test123",
       clientSecret: "bg_sec_secret456",
+      redirectUri: "https://myapp.com/callback",
     });
 
     const result = await server.exchangeCode("bg_code_abc123", "verifier_xyz");
@@ -102,6 +103,7 @@ describe("exchangeCode — token exchange + UserInfo", () => {
         client_id: "bg_client_test123",
         client_secret: "bg_sec_secret456",
         code_verifier: "verifier_xyz",
+        redirect_uri: "https://myapp.com/callback",
       }),
     });
 
@@ -116,11 +118,97 @@ describe("exchangeCode — token exchange + UserInfo", () => {
     const server = buildGaraServer({
       clientId: "bg_client_test123",
       clientSecret: "bg_sec_secret456",
+      redirectUri: "https://myapp.com/callback",
     });
 
     await expect(
       server.exchangeCode("", "verifier_xyz"),
     ).rejects.toThrow("code is required");
+  });
+
+  it("per-call redirectUri override wins over configured value", async () => {
+    const { buildGaraServer } = await import("../src/server.ts");
+
+    const tokenJson = JSON.stringify({
+      access_token: "access_token_abc",
+      token_type: "Bearer",
+      expires_in: 3600,
+    });
+    const profileJson = JSON.stringify({
+      sub: "42",
+      name: "Anisha Sharma",
+      preferred_username: "anisha",
+      email: "anisha@example.com",
+      email_verified: true,
+      role: "founder",
+      avatar: null,
+      country: "Nepal",
+      city: "Kathmandu",
+      is_founder: true,
+      is_investor: false,
+      is_provider: false,
+    });
+
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => JSON.parse(tokenJson),
+      text: async () => tokenJson,
+    } as unknown as Response);
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => JSON.parse(profileJson),
+      text: async () => profileJson,
+    } as Response);
+
+    const server = buildGaraServer({
+      clientId: "bg_client_test123",
+      clientSecret: "bg_sec_secret456",
+      redirectUri: "https://myapp.com/callback",
+    });
+
+    await server.exchangeCode("bg_code_abc123", "verifier_xyz", "https://myapp.com/id/callback");
+
+    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining("/api/oauth/token"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        grant_type: "authorization_code",
+        code: "bg_code_abc123",
+        client_id: "bg_client_test123",
+        client_secret: "bg_sec_secret456",
+        code_verifier: "verifier_xyz",
+        redirect_uri: "https://myapp.com/id/callback",
+      }),
+    });
+  });
+
+  it("throws ConfigurationError when redirectUri is missing everywhere", async () => {
+    const { buildGaraServer } = await import("../src/server.ts");
+    vi.stubEnv("BG_REDIRECT_URI", "");
+    vi.stubEnv("BUILDGARA_REDIRECT_URI", "");
+    const server = buildGaraServer({
+      clientId: "bg_client_test123",
+      clientSecret: "bg_sec_secret456",
+    });
+
+    await expect(
+      server.exchangeCode("bg_code_abc123", "verifier_xyz"),
+    ).rejects.toMatchObject({ code: "CONFIGURATION_ERROR" });
+    vi.unstubAllEnvs();
+  });
+
+  it("throws ConfigurationError for invalid redirectUri", async () => {
+    const { buildGaraServer } = await import("../src/server.ts");
+    expect(
+      () =>
+        buildGaraServer({
+          clientId: "bg_client_test123",
+          clientSecret: "bg_sec_secret456",
+          redirectUri: "not-a-url",
+        }),
+    ).toThrow("redirectUri is not a valid URL");
   });
 
   it("throws TokenExchangeError when token endpoint returns 400", async () => {
@@ -139,6 +227,7 @@ describe("exchangeCode — token exchange + UserInfo", () => {
     const server = buildGaraServer({
       clientId: "bg_client_test123",
       clientSecret: "bg_sec_secret456",
+      redirectUri: "https://myapp.com/callback",
     });
 
     await expect(
@@ -172,6 +261,7 @@ describe("exchangeCode — token exchange + UserInfo", () => {
     const server = buildGaraServer({
       clientId: "bg_client_test123",
       clientSecret: "bg_sec_secret456",
+      redirectUri: "https://myapp.com/callback",
     });
 
     await expect(
@@ -223,6 +313,7 @@ describe("callbackHandler — middleware", () => {
     const server = buildGaraServer({
       clientId: "bg_client_test123",
       clientSecret: "bg_sec_secret456",
+      redirectUri: "https://myapp.com/callback",
     });
 
     const req = new MockExpressRequest();
@@ -255,6 +346,7 @@ describe("callbackHandler — middleware", () => {
     const server = buildGaraServer({
       clientId: "bg_client_test123",
       clientSecret: "bg_sec_secret456",
+      redirectUri: "https://myapp.com/callback",
     });
 
     const req = new MockExpressRequest();
@@ -311,6 +403,7 @@ describe("callbackHandler — middleware", () => {
     const server = buildGaraServer({
       clientId: "bg_client_test123",
       clientSecret: "bg_sec_secret456",
+      redirectUri: "https://myapp.com/callback",
     });
 
     const req = new MockExpressRequest();
@@ -332,6 +425,7 @@ describe("callbackHandler — middleware", () => {
     const server = buildGaraServer({
       clientId: "bg_client_test123",
       clientSecret: "bg_sec_secret456",
+      redirectUri: "https://myapp.com/callback",
     });
 
     const req = new MockExpressRequest();

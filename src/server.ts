@@ -29,6 +29,13 @@ export interface BuildGaraServerConfig {
   clientId: string;
   clientSecret: string;
   apiBaseUrl?: string;
+  /** One of your registered redirect URIs (origin + pathname must match the
+   *  authorize-time redirect_uri exactly, e.g. "https://buildgara.com/id/callback").
+   *  Optional for backward compat, but required at exchange time when the IdP
+   *  stored a redirectUri with the code (always). Falls back to
+   *  BG_REDIRECT_URI / BUILDGARA_REDIRECT_URI env. A per-call override can be
+   *  passed to exchangeCode(). */
+  redirectUri?: string;
 }
 
 /** Result of exchangeCode / callbackHandler's onProfile. */
@@ -44,8 +51,11 @@ export interface ExchangeResult {
 export interface BuildGaraServer {
   /** Exchange an authorization code + PKCE verifier for tokens + profile.
    *  Calls POST /api/oauth/token then GET /api/oauth/userinfo.
-   *  The access_token stays server-side — do NOT send it to the browser. */
-  exchangeCode: (code: string, codeVerifier: string) => Promise<ExchangeResult>;
+   *  The access_token stays server-side — do NOT send it to the browser.
+   *  Pass the authorize-time redirectUri (or configure it on the server
+   *  instance / via BG_REDIRECT_URI env) — the IdP requires redirect_uri
+   *  to echo the stored value (RFC 6749 Section 4.1.3). */
+  exchangeCode: (code: string, codeVerifier: string, redirectUri?: string) => Promise<ExchangeResult>;
 
   /** Express middleware for the callback route (Google-style popup callback).
    *  Mount at the consumer's redirectUri path. Parses ?code=&state= from the
@@ -97,6 +107,17 @@ function readEnv(names: string | string[], fallback: string): string {
   return fallback;
 }
 
+function readEnvOptional(names: string | string[]): string | undefined {
+  const nameList = Array.isArray(names) ? names : [names];
+  for (const name of nameList) {
+    const val = process.env?.[name];
+    if (typeof val === "string" && val.trim()) {
+      return val.trim();
+    }
+  }
+  return undefined;
+}
+
 const DEFAULT_API_BASE = "https://api.buildgara.com";
 
 // ---------------------------------------------------------------------------
@@ -126,19 +147,32 @@ export function buildGaraServer(config: BuildGaraServerConfig): BuildGaraServer 
     config.apiBaseUrl?.replace(/\/+$/, "") ??
     readEnv(["BG_API_BASE", "BUILDGARA_API_URL"], DEFAULT_API_BASE);
 
-  return {
-    exchangeCode: (code, codeVerifier) =>
-      exchangeCodeInner(
-        { apiBase, clientId: config.clientId, clientSecret: config.clientSecret },
-        code,
-        codeVerifier,
-      ),
+  const configuredRedirectUri =
+    config.redirectUri?.trim() ||
+    readEnvOptional(["BG_REDIRECT_URI", "BUILDGARA_REDIRECT_URI"]);
 
-    callbackHandler: (opts) =>
-      callbackHandlerInner(
-        { apiBase, clientId: config.clientId, clientSecret: config.clientSecret },
-        opts,
-      ),
+  if (configuredRedirectUri) {
+    try {
+      new URL(configuredRedirectUri);
+    } catch {
+      throw new ConfigurationError(
+        `redirectUri is not a valid URL: ${configuredRedirectUri}`,
+      );
+    }
+  }
+
+  const serverCtx = {
+    apiBase,
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
+    redirectUri: configuredRedirectUri || undefined,
+  };
+
+  return {
+    exchangeCode: (code, codeVerifier, redirectUri) =>
+      exchangeCodeInner(serverCtx, code, codeVerifier, redirectUri),
+
+    callbackHandler: (opts) => callbackHandlerInner(serverCtx, opts),
   };
 }
 
@@ -147,9 +181,10 @@ export async function exchangeCode(
   config: BuildGaraServerConfig,
   code: string,
   codeVerifier: string,
+  redirectUri?: string,
 ): Promise<{ profile: UserInfo; accessToken: string; idToken?: string }> {
   const server = buildGaraServer(config);
-  return server.exchangeCode(code, codeVerifier);
+  return server.exchangeCode(code, codeVerifier, redirectUri);
 }
 
 // ---------------------------------------------------------------------------
@@ -157,15 +192,27 @@ export async function exchangeCode(
 // ---------------------------------------------------------------------------
 
 async function exchangeCodeInner(
-  ctx: { apiBase: string; clientId: string; clientSecret: string },
+  ctx: { apiBase: string; clientId: string; clientSecret: string; redirectUri?: string },
   code: string,
   codeVerifier: string,
+  redirectUriOverride?: string,
 ): Promise<ExchangeResult> {
   if (!code || typeof code !== "string") {
     throw new InvalidCodeError("code is required.");
   }
   if (!codeVerifier || typeof codeVerifier !== "string") {
     throw new InvalidCodeError("codeVerifier is required.");
+  }
+  const redirectUri = redirectUriOverride?.trim() || ctx.redirectUri?.trim();
+  if (!redirectUri) {
+    throw new ConfigurationError(
+      "redirectUri is required to exchange code (RFC 6749 Section 4.1.3). Pass it to exchangeCode(code, verifier, redirectUri), set it on buildGaraServer({ redirectUri }), or set BG_REDIRECT_URI / BUILDGARA_REDIRECT_URI env. It must match the authorize-time redirect_uri exactly (origin + pathname).",
+    );
+  }
+  try {
+    new URL(redirectUri);
+  } catch {
+    throw new ConfigurationError(`redirectUri is not a valid URL: ${redirectUri}`);
   }
 
   // 1. Exchange the authorization code for tokens (server-to-server)
@@ -178,6 +225,7 @@ async function exchangeCodeInner(
       client_id: ctx.clientId,
       client_secret: ctx.clientSecret,
       code_verifier: codeVerifier,
+      redirect_uri: redirectUri,
     }),
   });
 
@@ -232,7 +280,7 @@ async function exchangeCodeInner(
 // ---------------------------------------------------------------------------
 
 export function callbackHandlerInner(
-  ctx: { apiBase: string; clientId: string; clientSecret: string },
+  ctx: { apiBase: string; clientId: string; clientSecret: string; redirectUri?: string },
   opts: CallbackHandlerOpts,
 ): (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => void {
   return async (req, res, next) => {
@@ -255,7 +303,7 @@ export function callbackHandlerInner(
 async function handleCallback(
   req: ExpressRequest,
   res: ExpressResponse,
-  ctx: { apiBase: string; clientId: string; clientSecret: string },
+  ctx: { apiBase: string; clientId: string; clientSecret: string; redirectUri?: string },
   opts: CallbackHandlerOpts,
 ) {
   const params = req.query as Record<string, string | string[] | undefined>;
